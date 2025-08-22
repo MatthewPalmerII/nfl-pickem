@@ -74,10 +74,11 @@ app.use("*", (req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 NFL Pick'em server running on port ${PORT}`);
   console.log(`📱 Frontend should be running on http://localhost:3000`);
   console.log(`🔗 API available at http://localhost:${PORT}/api`);
+  console.log(`🌐 Server accessible from any IP`);
 
   // Start automated score update job
   if (
