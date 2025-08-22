@@ -1,0 +1,52 @@
+{
+  "name": "nfl-pickem",
+  "version": "1.0.0",
+  "description": "NFL Pick'em League Website for Family and Friends",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "nodemon server/index.js",
+    "client": "cd client && npm start",
+    "build": "cd client && npm run build",
+    "install-all": "npm install && cd client && npm install",
+    "start": "node server/index.js",
+    "seed": "node server/scripts/seed.js",
+    "seed-nfl": "node server/scripts/seed-nfl-weeks.js",
+    "seed-current": "node server/scripts/seed-current-week.js",
+    "seed-simple": "node server/scripts/seed-current-week-simple.js",
+    "wipe-all": "node server/scripts/wipe-all.js",
+    "test-scoring": "node server/scripts/test-scoring-system.js",
+    "test-live": "node server/scripts/test-live-scoring.js",
+    "test-override": "node server/scripts/test-score-override.js",
+    "manual-score": "node server/scripts/manual-score-update.js",
+    "cleanup-test": "node server/scripts/cleanup-test-data.js",
+    "seed-real": "node server/scripts/seed-real-nfl-schedule.js",
+    "fetch-nfl": "node server/scripts/fetch-nfl-schedule.js"
+  },
+  "keywords": [
+    "nfl",
+    "pickem",
+    "football",
+    "league"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.11.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.18.0",
+    "mongoose": "^8.0.3",
+    "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2"
+  }
+}
