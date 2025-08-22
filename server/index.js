@@ -12,7 +12,12 @@ const leaderboardRoutes = require("./routes/leaderboard");
 const userRoutes = require("./routes/users");
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
+
+// Log port configuration for debugging
+console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
+console.log(`🔧 PORT from env: ${process.env.PORT || "not set"}`);
+console.log(`🔧 Using port: ${PORT}`);
 
 // Security middleware
 app.use(helmet());
