@@ -31,12 +31,7 @@ app.use(helmet());
 // CORS configuration
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000", // Local development
-      "https://nfl-pickem-frontend.vercel.app", // Your Vercel domain (when you deploy)
-      "https://nfl-pickem-frontend-git-main.vercel.app", // Alternative Vercel domain format
-      "https://nfl-pickem-frontend-git-vercel.vercel.app", // Another possible Vercel format
-    ],
+    origin: true, // Allow all origins
     credentials: true,
   })
 );
