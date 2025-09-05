@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const mongoose = require("mongoose");
 require("dotenv").config();
 
 const authRoutes = require("./routes/auth");
@@ -47,7 +48,17 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Database connection
 const connectDB = require("./config/database");
-connectDB();
+
+// Database connection check middleware
+app.use((req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      message: "Database not connected. Please try again in a moment.",
+      error: "Service temporarily unavailable",
+    });
+  }
+  next();
+});
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -79,25 +90,40 @@ app.use("*", (req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 NFL Pick'em server running on port ${PORT}`);
-  console.log(`📱 Frontend should be running on http://localhost:3000`);
-  console.log(`🔗 API available at http://localhost:${PORT}/api`);
-  console.log(`🌐 Server accessible from any IP`);
+// Start server only after database connection
+const startServer = async () => {
+  try {
+    // Connect to database first
+    await connectDB();
 
-  // Start automated score update job
-  if (
-    process.env.NODE_ENV === "production" ||
-    process.env.ENABLE_SCORE_UPDATES === "true"
-  ) {
-    const scoreUpdateJob = require("./jobs/scoreUpdateJob");
-    scoreUpdateJob.start();
-    console.log("🏈 Automated score update job started");
-  } else {
-    console.log(
-      "⏸️ Score updates disabled in development (set ENABLE_SCORE_UPDATES=true to enable)"
-    );
+    // Start the server
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 NFL Pick'em server running on port ${PORT}`);
+      console.log(`📱 Frontend should be running on http://localhost:3000`);
+      console.log(`🔗 API available at http://localhost:${PORT}/api`);
+      console.log(`🌐 Server accessible from any IP`);
+
+      // Start automated score update job
+      if (
+        process.env.NODE_ENV === "production" ||
+        process.env.ENABLE_SCORE_UPDATES === "true"
+      ) {
+        const scoreUpdateJob = require("./jobs/scoreUpdateJob");
+        scoreUpdateJob.start();
+        console.log("🏈 Automated score update job started");
+      } else {
+        console.log(
+          "⏸️ Score updates disabled in development (set ENABLE_SCORE_UPDATES=true to enable)"
+        );
+      }
+    });
+  } catch (error) {
+    console.error("❌ Failed to start server:", error);
+    process.exit(1);
   }
-});
+};
+
+// Start the server
+startServer();
 
 module.exports = app;
