@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "update-scores": "node scripts/auto-score-update.js",
+    "manual-score": "node scripts/manual-score-update.js"
   },
   "dependencies": {
     "express": "^4.18.2",

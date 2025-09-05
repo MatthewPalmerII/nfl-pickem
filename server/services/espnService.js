@@ -70,8 +70,12 @@ class ESPNService {
     const competition = event.competitions?.[0];
     if (!competition) return null;
 
-    const awayTeam = competition.competitors?.find((c) => c.awayAway);
-    const homeTeam = competition.competitors?.find((c) => c.homeAway);
+    const awayTeam = competition.competitors?.find(
+      (c) => c.homeAway === "away"
+    );
+    const homeTeam = competition.competitors?.find(
+      (c) => c.homeAway === "home"
+    );
 
     if (!awayTeam || !homeTeam) return null;
 
@@ -96,8 +100,12 @@ class ESPNService {
     const competition = game.competitions?.[0];
     if (!competition) return null;
 
-    const awayTeam = competition.competitors?.find((c) => c.awayAway);
-    const homeTeam = competition.competitors?.find((c) => c.homeAway);
+    const awayTeam = competition.competitors?.find(
+      (c) => c.homeAway === "away"
+    );
+    const homeTeam = competition.competitors?.find(
+      (c) => c.homeAway === "home"
+    );
 
     if (!awayTeam || !homeTeam) return null;
 
