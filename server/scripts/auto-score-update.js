@@ -73,6 +73,41 @@ async function autoScoreUpdate() {
       console.log(
         `🏈 Found Cowboys @ Eagles game: Week ${cowboysEaglesGame.week}, Status: ${cowboysEaglesGame.status}, Score: ${cowboysEaglesGame.awayScore}-${cowboysEaglesGame.homeScore}`
       );
+
+      // Try to get ESPN data for the specific week this game is in
+      console.log(
+        `🔍 Trying to get ESPN data for Week ${cowboysEaglesGame.week}...`
+      );
+      try {
+        const espnGamesForThisWeek = await espnService.getWeekGames(
+          currentSeason,
+          cowboysEaglesGame.week
+        );
+        console.log(
+          `📊 ESPN returned ${espnGamesForThisWeek.length} games for Week ${cowboysEaglesGame.week}`
+        );
+
+        const espnCowboysEagles = espnGamesForThisWeek.find(
+          (game) =>
+            (game.awayTeam === "Cowboys" && game.homeTeam === "Eagles") ||
+            (game.awayTeam === "Eagles" && game.homeTeam === "Cowboys")
+        );
+
+        if (espnCowboysEagles) {
+          console.log(
+            `🏈 ESPN Cowboys @ Eagles: Status: ${espnCowboysEagles.status}, Score: ${espnCowboysEagles.awayScore}-${espnCowboysEagles.homeScore}`
+          );
+        } else {
+          console.log(
+            `❌ Cowboys @ Eagles not found in ESPN Week ${cowboysEaglesGame.week} data`
+          );
+        }
+      } catch (error) {
+        console.log(
+          `❌ Error getting ESPN data for Week ${cowboysEaglesGame.week}:`,
+          error.message
+        );
+      }
     } else {
       console.log(`❌ Cowboys @ Eagles game not found in database`);
     }
