@@ -387,6 +387,22 @@ router.put(
 router.get("/", adminAuth, async (req, res) => {
   try {
     const games = await Game.find({}).sort({ week: 1, date: 1 });
+
+    // Debug: Log Cowboys @ Eagles game specifically
+    const cowboysEagles = games.find(
+      (game) =>
+        (game.awayTeam === "Cowboys" && game.homeTeam === "Eagles") ||
+        (game.awayTeam === "Eagles" && game.homeTeam === "Cowboys")
+    );
+
+    if (cowboysEagles) {
+      console.log(
+        `🏈 Admin API - Cowboys @ Eagles: Status: ${cowboysEagles.status}, Score: ${cowboysEagles.awayScore}-${cowboysEagles.homeScore}`
+      );
+    } else {
+      console.log("❌ Admin API - Cowboys @ Eagles not found");
+    }
+
     res.json(games);
   } catch (error) {
     console.error("Get all games error:", error);
