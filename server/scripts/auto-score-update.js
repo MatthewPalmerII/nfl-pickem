@@ -3,6 +3,7 @@
 const mongoose = require("mongoose");
 const Game = require("../models/Game");
 const GameResult = require("../models/GameResult");
+const Pick = require("../models/Pick");
 const espnService = require("../services/espnService");
 const scoringService = require("../services/scoringService");
 require("dotenv").config();
@@ -25,6 +26,83 @@ function getCurrentNFLWeek() {
   console.log(`📅 Calculated week: ${currentWeek} for season ${currentYear}`);
 
   return currentWeek;
+}
+
+/**
+ * Calculate pick results for finalized games
+ */
+async function calculatePickResults(season, week) {
+  try {
+    console.log(
+      `🔍 Calculating pick results for Season ${season}, Week ${week}...`
+    );
+
+    // Get all finalized games for this week
+    const finalizedGames = await Game.find({
+      season,
+      week,
+      status: "final",
+    });
+
+    console.log(`Found ${finalizedGames.length} finalized games`);
+
+    let updatedPicks = 0;
+
+    for (const game of finalizedGames) {
+      // Determine winner
+      let winner = null;
+      if (game.awayScore > game.homeScore) {
+        winner = game.awayTeam;
+      } else if (game.homeScore > game.awayScore) {
+        winner = game.homeTeam;
+      } else {
+        winner = "tie";
+      }
+
+      // Update game with winner if not already set
+      if (!game.winner) {
+        await Game.findByIdAndUpdate(game._id, { winner });
+        console.log(
+          `  Set winner for ${game.awayTeam} @ ${game.homeTeam}: ${winner}`
+        );
+      }
+
+      // Get all picks for this game
+      const picks = await Pick.find({
+        gameId: game._id,
+        isCorrect: null, // Only update picks that haven't been processed yet
+      });
+
+      console.log(
+        `  Found ${picks.length} unprocessed picks for ${game.awayTeam} @ ${game.homeTeam}`
+      );
+
+      // Update each pick
+      for (const pick of picks) {
+        const isCorrect = pick.selectedTeam === winner;
+        const points = isCorrect ? 1 : 0;
+
+        await Pick.findByIdAndUpdate(pick._id, {
+          isCorrect,
+          points,
+        });
+
+        console.log(
+          `    User pick: ${pick.selectedTeam} - ${
+            isCorrect ? "✅ Correct" : "❌ Incorrect"
+          } (Winner: ${winner})`
+        );
+        updatedPicks++;
+      }
+    }
+
+    console.log(
+      `✅ Updated ${updatedPicks} picks for ${finalizedGames.length} finalized games`
+    );
+  } catch (error) {
+    console.error("❌ Error calculating pick results:", error);
+    throw error;
+  }
 }
 
 async function autoScoreUpdate() {
@@ -233,6 +311,11 @@ async function autoScoreUpdate() {
       await scoringService.processAllResults();
       console.log("✅ Game results processed successfully!");
     }
+
+    // Also calculate pick results for any finalized games
+    console.log("\n🔄 Calculating pick results for finalized games...");
+    await calculatePickResults(currentSeason, currentWeek);
+    console.log("✅ Pick results calculated successfully!");
 
     console.log("✅ Automatic score update completed!");
   } catch (error) {
