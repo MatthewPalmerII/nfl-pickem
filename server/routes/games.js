@@ -80,7 +80,24 @@ router.get("/current", async (req, res) => {
     }).sort("date");
 
     if (!currentWeek) {
-      return res.json({ currentWeek: null, games: [] });
+      // If no future games, look for the most recent week with games
+      const mostRecentWeek = await Game.findOne({
+        season,
+      }).sort({ week: -1 });
+
+      if (!mostRecentWeek) {
+        return res.json({ currentWeek: null, games: [] });
+      }
+
+      const games = await Game.find({
+        week: mostRecentWeek.week,
+        season,
+      }).sort("date");
+
+      return res.json({
+        currentWeek: mostRecentWeek.week,
+        games,
+      });
     }
 
     const games = await Game.find({
