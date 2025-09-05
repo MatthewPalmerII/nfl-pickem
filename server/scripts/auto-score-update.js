@@ -71,7 +71,7 @@ async function autoScoreUpdate() {
 
     if (cowboysEaglesGame) {
       console.log(
-        `🏈 Found Cowboys @ Eagles game: Week ${cowboysEaglesGame.week}, Status: ${cowboysEaglesGame.status}`
+        `🏈 Found Cowboys @ Eagles game: Week ${cowboysEaglesGame.week}, Status: ${cowboysEaglesGame.status}, Score: ${cowboysEaglesGame.awayScore}-${cowboysEaglesGame.homeScore}`
       );
     } else {
       console.log(`❌ Cowboys @ Eagles game not found in database`);
@@ -92,7 +92,7 @@ async function autoScoreUpdate() {
       if (!espnGame) continue;
 
       console.log(
-        `Processing: ${espnGame.awayTeam} @ ${espnGame.homeTeam} - Status: ${espnGame.status}`
+        `Processing: ${espnGame.awayTeam} @ ${espnGame.homeTeam} - Status: ${espnGame.status}, Score: ${espnGame.awayScore}-${espnGame.homeScore}`
       );
 
       // Find the game in our database
@@ -106,6 +106,10 @@ async function autoScoreUpdate() {
       });
 
       if (dbGame) {
+        console.log(
+          `  Database game: Status: ${dbGame.status}, Score: ${dbGame.awayScore}-${dbGame.homeScore}`
+        );
+
         // Check if we need to update this game
         const needsUpdate =
           dbGame.status !== espnGame.status ||
