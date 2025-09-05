@@ -737,6 +737,35 @@ router.delete("/:id", adminAuth, async (req, res) => {
   }
 });
 
+// @route   GET /api/picks/week/:week/all
+// @desc    Get all users' picks for a specific week (for viewing picks)
+// @access  Private
+router.get("/week/:week/all", auth, async (req, res) => {
+  try {
+    const week = parseInt(req.params.week);
+    const season = parseInt(req.query.season) || new Date().getFullYear();
+
+    if (week < 1 || week > 18) {
+      return res.status(400).json({ message: "Invalid week number" });
+    }
+
+    const picks = await Pick.find({
+      week,
+      season,
+    })
+      .populate("userId", "name email")
+      .populate(
+        "gameId",
+        "awayTeam homeTeam date time network status winner awayScore homeScore"
+      );
+
+    res.json(picks);
+  } catch (error) {
+    console.error("Get all picks for week error:", error);
+    res.status(500).json({ message: "Server error getting picks for week" });
+  }
+});
+
 // @route   GET /api/picks/league-log
 // @desc    Get league activity log
 // @access  Private
