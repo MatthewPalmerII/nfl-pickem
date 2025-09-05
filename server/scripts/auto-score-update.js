@@ -170,10 +170,8 @@ async function autoScoreUpdate() {
     console.log("✅ Automatic score update completed!");
   } catch (error) {
     console.error("❌ Error during automatic score update:", error);
-  } finally {
-    await mongoose.connection.close();
-    console.log("🔌 Database connection closed");
   }
+  // Note: Don't close the database connection here as it's shared with the main server
 }
 
 // Run the script

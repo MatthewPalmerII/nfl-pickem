@@ -754,28 +754,35 @@ router.get("/league-log", auth, async (req, res) => {
       let message = "";
       let details = activity.details;
 
+      // Add null checks for user names
+      const userName = activity.userId?.name || "Unknown User";
+
       switch (activity.type) {
         case "pick_submission":
-          message = `${activity.userId.name} submitted picks for Week ${activity.week}`;
+          message = `${userName} submitted picks for Week ${activity.week}`;
           break;
         case "pick_update":
-          message = `${activity.userId.name} updated their pick for Week ${activity.week}`;
+          message = `${userName} updated their pick for Week ${activity.week}`;
           details = `Changed from ${activity.metadata.previousValue} to ${activity.metadata.newValue} for ${activity.gameId?.awayTeam} @ ${activity.gameId?.homeTeam}`;
           break;
         case "pick_edit":
           if (activity.metadata.previousValue === "No pick") {
-            message = `${activity.userId.name} created a pick for ${activity.targetUserId.name}`;
+            const targetUserName =
+              activity.targetUserId?.name || "Unknown User";
+            message = `${userName} created a pick for ${targetUserName}`;
             details = `Created pick for ${activity.metadata.newValue} in ${activity.gameId?.awayTeam} @ ${activity.gameId?.homeTeam}. Reason: ${activity.metadata.editReason}`;
           } else {
-            message = `${activity.userId.name} edited ${activity.targetUserId.name}'s pick`;
+            const targetUserName =
+              activity.targetUserId?.name || "Unknown User";
+            message = `${userName} edited ${targetUserName}'s pick`;
             details = `Changed from ${activity.metadata.previousValue} to ${activity.metadata.newValue} for ${activity.gameId?.awayTeam} @ ${activity.gameId?.homeTeam}. Reason: ${activity.metadata.editReason}`;
           }
           break;
         case "pick_delete":
-          message = `${activity.userId.name} deleted their pick for Week ${activity.week}`;
+          message = `${userName} deleted their pick for Week ${activity.week}`;
           break;
         case "score_override":
-          message = `${activity.userId.name} overrode game score`;
+          message = `${userName} overrode game score`;
           details = `Changed ${activity.metadata.awayTeam} @ ${activity.metadata.homeTeam} from ${activity.metadata.previousAwayScore}-${activity.metadata.previousHomeScore} to ${activity.metadata.newAwayScore}-${activity.metadata.newHomeScore}. Reason: ${activity.metadata.reason}`;
           break;
         default:
