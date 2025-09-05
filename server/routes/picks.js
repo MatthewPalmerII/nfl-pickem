@@ -794,7 +794,7 @@ router.get("/league-log", auth, async (req, res) => {
         message,
         details,
         timestamp: activity.timestamp,
-        userId: activity.userId._id,
+        userId: activity.userId?._id || null,
         week: activity.week,
       };
     });

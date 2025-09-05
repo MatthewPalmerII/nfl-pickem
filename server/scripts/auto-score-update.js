@@ -17,18 +17,12 @@ function getCurrentNFLWeek() {
   const now = new Date();
   const currentYear = now.getFullYear();
 
-  // NFL season typically starts the first Thursday in September
-  // This is a simplified calculation - you might want to make this more sophisticated
-  const seasonStart = new Date(currentYear, 8, 1); // September 1st
+  // For now, let's use a fixed week for testing
+  // You can adjust this based on the actual NFL schedule
+  const currentWeek = 1; // Start with Week 1 for testing
 
-  // Calculate weeks since season start
-  const weekOffset = Math.floor(
-    (now - seasonStart) / (7 * 24 * 60 * 60 * 1000)
-  );
-
-  // NFL season typically runs 18 weeks (17 regular season + 1 week for playoffs)
-  // This is a simplified calculation
-  const currentWeek = Math.max(1, Math.min(18, weekOffset + 1));
+  console.log(`📅 Current date: ${now.toISOString()}`);
+  console.log(`📅 Calculated week: ${currentWeek} for season ${currentYear}`);
 
   return currentWeek;
 }
@@ -37,9 +31,13 @@ async function autoScoreUpdate() {
   try {
     console.log("🔄 Starting automatic score update...");
 
-    // Connect to database
-    await connectDB();
-    console.log("✅ Database connected");
+    // Database should already be connected from main server
+    if (mongoose.connection.readyState !== 1) {
+      console.log("⚠️ Database not connected, connecting...");
+      await connectDB();
+    } else {
+      console.log("✅ Database already connected");
+    }
 
     // Get current week dynamically
     const currentSeason = new Date().getFullYear();
@@ -48,6 +46,36 @@ async function autoScoreUpdate() {
     console.log(
       `📊 Fetching scores for Week ${currentWeek}, Season ${currentSeason}...`
     );
+
+    // Check what games we have in the database
+    const dbGames = await Game.find({ season: currentSeason }).sort({
+      week: 1,
+    });
+    console.log(
+      `📊 Found ${dbGames.length} games in database for season ${currentSeason}`
+    );
+    dbGames.forEach((game) => {
+      console.log(
+        `  Week ${game.week}: ${game.awayTeam} @ ${game.homeTeam} - Status: ${game.status}`
+      );
+    });
+
+    // Try to find the Cowboys @ Eagles game specifically
+    const cowboysEaglesGame = await Game.findOne({
+      $or: [
+        { awayTeam: "Cowboys", homeTeam: "Eagles" },
+        { awayTeam: "Eagles", homeTeam: "Cowboys" },
+      ],
+      season: currentSeason,
+    });
+
+    if (cowboysEaglesGame) {
+      console.log(
+        `🏈 Found Cowboys @ Eagles game: Week ${cowboysEaglesGame.week}, Status: ${cowboysEaglesGame.status}`
+      );
+    } else {
+      console.log(`❌ Cowboys @ Eagles game not found in database`);
+    }
 
     // Get current scores from ESPN
     const espnGames = await espnService.getWeekGames(
