@@ -36,8 +36,16 @@ router.get("/user", auth, async (req, res) => {
     // Calculate basic stats
     const totalPicks = picks.length;
     const correctPicks = picks.filter((pick) => pick.isCorrect === true).length;
+
+    // Only count picks from finalized games for win percentage
+    const finalizedPicks = picks.filter((pick) => pick.isCorrect !== null);
+    const finalizedCorrectPicks = finalizedPicks.filter(
+      (pick) => pick.isCorrect === true
+    ).length;
     const winPercentage =
-      totalPicks > 0 ? Math.round((correctPicks / totalPicks) * 100) : 0;
+      finalizedPicks.length > 0
+        ? Math.round((finalizedCorrectPicks / finalizedPicks.length) * 100)
+        : 0;
 
     // Calculate streaks
     let currentStreak = 0;

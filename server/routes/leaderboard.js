@@ -22,15 +22,21 @@ router.get("/overall", async (req, res) => {
           totalPicks: { $sum: 1 },
           correctPicks: { $sum: { $cond: ["$isCorrect", 1, 0] } },
           totalPoints: { $sum: "$points" },
+          finalizedPicks: {
+            $sum: { $cond: [{ $ne: ["$isCorrect", null] }, 1, 0] },
+          },
         },
       },
       {
         $addFields: {
           winPercentage: {
             $cond: [
-              { $gt: ["$totalPicks", 0] },
+              { $gt: ["$finalizedPicks", 0] },
               {
-                $multiply: [{ $divide: ["$correctPicks", "$totalPicks"] }, 100],
+                $multiply: [
+                  { $divide: ["$correctPicks", "$finalizedPicks"] },
+                  100,
+                ],
               },
               0,
             ],
@@ -40,6 +46,14 @@ router.get("/overall", async (req, res) => {
       { $sort: { totalPoints: -1, winPercentage: -1, totalPicks: -1 } },
       { $limit: limit },
     ]);
+
+    // Debug: Check what we got from aggregation
+    console.log(
+      `📊 Leaderboard: Aggregation returned ${leaderboard.length} users`
+    );
+    if (leaderboard.length > 0) {
+      console.log(`📊 Sample user: ${JSON.stringify(leaderboard[0], null, 2)}`);
+    }
 
     // Get user details and calculate streaks
     const leaderboardWithDetails = await Promise.all(
@@ -235,8 +249,16 @@ router.get("/user/:userId", async (req, res) => {
     // Calculate overall stats
     const totalPicks = picks.length;
     const correctPicks = picks.filter((pick) => pick.isCorrect === true).length;
+
+    // Only count picks from finalized games for win percentage
+    const finalizedPicks = picks.filter((pick) => pick.isCorrect !== null);
+    const finalizedCorrectPicks = finalizedPicks.filter(
+      (pick) => pick.isCorrect === true
+    ).length;
     const winPercentage =
-      totalPicks > 0 ? Math.round((correctPicks / totalPicks) * 100) : 0;
+      finalizedPicks.length > 0
+        ? Math.round((finalizedCorrectPicks / finalizedPicks.length) * 100)
+        : 0;
 
     // Calculate weekly breakdown
     const weeklyStats = {};
