@@ -49,17 +49,6 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Database connection
 const connectDB = require("./config/database");
 
-// Database connection check middleware
-app.use((req, res, next) => {
-  if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({
-      message: "Database not connected. Please try again in a moment.",
-      error: "Service temporarily unavailable",
-    });
-  }
-  next();
-});
-
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/games", gameRoutes);
