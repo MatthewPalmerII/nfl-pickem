@@ -18,9 +18,16 @@ function getCurrentNFLWeek() {
   const now = new Date();
   const currentYear = now.getFullYear();
 
-  // For now, let's use a fixed week for testing
-  // You can adjust this based on the actual NFL schedule
-  const currentWeek = 1; // Start with Week 1 for testing
+  // Calculate the current NFL week based on the date
+  // NFL season typically starts in early September
+  const seasonStart = new Date(currentYear, 8, 1); // September 1st
+  const daysSinceStart = Math.floor(
+    (now - seasonStart) / (1000 * 60 * 60 * 24)
+  );
+  const currentWeek = Math.min(
+    Math.max(Math.floor(daysSinceStart / 7) + 1, 1),
+    18
+  );
 
   console.log(`📅 Current date: ${now.toISOString()}`);
   console.log(`📅 Calculated week: ${currentWeek} for season ${currentYear}`);
@@ -125,6 +132,13 @@ async function autoScoreUpdate() {
       `📊 Fetching scores for Week ${currentWeek}, Season ${currentSeason}...`
     );
 
+    // Process current week and previous weeks to catch up
+    const weeksToProcess = [];
+    for (let week = 1; week <= currentWeek; week++) {
+      weeksToProcess.push(week);
+    }
+    console.log(`📊 Will process weeks: ${weeksToProcess.join(", ")}`);
+
     // Check what games we have in the database
     const dbGames = await Game.find({ season: currentSeason }).sort({
       week: 1,
@@ -190,132 +204,151 @@ async function autoScoreUpdate() {
       console.log(`❌ Cowboys @ Eagles game not found in database`);
     }
 
-    // Get current scores from ESPN
-    const espnGames = await espnService.getWeekGames(
-      currentSeason,
-      currentWeek
-    );
-    console.log(`Found ${espnGames.length} games from ESPN`);
+    let totalUpdatedGames = 0;
+    let totalProcessedResults = 0;
 
-    let updatedGames = 0;
-    let processedResults = 0;
+    // Process each week
+    for (const week of weeksToProcess) {
+      console.log(`\n📊 Processing Week ${week}...`);
 
-    // Update games in database
-    for (const espnGame of espnGames) {
-      if (!espnGame) continue;
-
-      console.log(
-        `Processing: ${espnGame.awayTeam} @ ${espnGame.homeTeam} - Status: ${espnGame.status}, Score: ${espnGame.awayScore}-${espnGame.homeScore}`
-      );
-
-      // Find the game in our database
-      const dbGame = await Game.findOne({
-        $or: [
-          { awayTeam: espnGame.awayTeam, homeTeam: espnGame.homeTeam },
-          { awayTeam: espnGame.homeTeam, homeTeam: espnGame.awayTeam },
-        ],
-        week: currentWeek,
-        season: currentSeason,
-      });
-
-      if (dbGame) {
+      try {
+        // Get current scores from ESPN for this week
+        const espnGames = await espnService.getWeekGames(currentSeason, week);
         console.log(
-          `  Database game: Status: ${dbGame.status}, Score: ${dbGame.awayScore}-${dbGame.homeScore}`
+          `Found ${espnGames.length} games from ESPN for Week ${week}`
         );
 
-        // Check if we need to update this game
-        const needsUpdate =
-          dbGame.status !== espnGame.status ||
-          dbGame.awayScore !== espnGame.awayScore ||
-          dbGame.homeScore !== espnGame.homeScore;
+        let updatedGames = 0;
+        let processedResults = 0;
 
-        if (needsUpdate) {
+        // Update games in database
+        for (const espnGame of espnGames) {
+          if (!espnGame) continue;
+
           console.log(
-            `  Updating: ${espnGame.awayTeam} @ ${espnGame.homeTeam} - Status: ${espnGame.status}, Score: ${espnGame.awayScore}-${espnGame.homeScore}`
+            `Processing: ${espnGame.awayTeam} @ ${espnGame.homeTeam} - Status: ${espnGame.status}, Score: ${espnGame.awayScore}-${espnGame.homeScore}`
           );
 
-          // Determine winner
-          let winner = null;
-          if (espnGame.status === "final") {
-            if (espnGame.awayScore > espnGame.homeScore) {
-              winner = espnGame.awayTeam;
-            } else if (espnGame.homeScore > espnGame.awayScore) {
-              winner = espnGame.homeTeam;
-            }
-          }
-
-          // Update the game with ESPN data
-          await Game.findByIdAndUpdate(dbGame._id, {
-            status: espnGame.status,
-            awayScore: espnGame.awayScore,
-            homeScore: espnGame.homeScore,
-            quarter: espnGame.quarter,
-            timeRemaining: espnGame.timeRemaining,
-            winner: winner,
-            updatedAt: new Date(),
+          // Find the game in our database
+          const dbGame = await Game.findOne({
+            $or: [
+              { awayTeam: espnGame.awayTeam, homeTeam: espnGame.homeTeam },
+              { awayTeam: espnGame.homeTeam, homeTeam: espnGame.awayTeam },
+            ],
+            week: week,
+            season: currentSeason,
           });
 
-          updatedGames++;
+          if (dbGame) {
+            console.log(
+              `  Database game: Status: ${dbGame.status}, Score: ${dbGame.awayScore}-${dbGame.homeScore}`
+            );
 
-          // Create or update GameResult if game is final
-          if (espnGame.status === "final") {
-            const existingResult = await GameResult.findOne({
-              gameId: dbGame._id,
-            });
+            // Check if we need to update this game
+            const needsUpdate =
+              dbGame.status !== espnGame.status ||
+              dbGame.awayScore !== espnGame.awayScore ||
+              dbGame.homeScore !== espnGame.homeScore;
 
-            if (existingResult) {
-              await GameResult.findByIdAndUpdate(existingResult._id, {
+            if (needsUpdate) {
+              console.log(
+                `  Updating: ${espnGame.awayTeam} @ ${espnGame.homeTeam} - Status: ${espnGame.status}, Score: ${espnGame.awayScore}-${espnGame.homeScore}`
+              );
+
+              // Determine winner
+              let winner = null;
+              if (espnGame.status === "final") {
+                if (espnGame.awayScore > espnGame.homeScore) {
+                  winner = espnGame.awayTeam;
+                } else if (espnGame.homeScore > espnGame.awayScore) {
+                  winner = espnGame.homeTeam;
+                }
+              }
+
+              // Update the game with ESPN data
+              await Game.findByIdAndUpdate(dbGame._id, {
+                status: espnGame.status,
                 awayScore: espnGame.awayScore,
                 homeScore: espnGame.homeScore,
-                status: "final",
+                quarter: espnGame.quarter,
+                timeRemaining: espnGame.timeRemaining,
                 winner: winner,
-                processed: false, // Reset processed flag so it gets reprocessed
                 updatedAt: new Date(),
               });
+
+              updatedGames++;
+
+              // Create or update GameResult if game is final
+              if (espnGame.status === "final") {
+                const existingResult = await GameResult.findOne({
+                  gameId: dbGame._id,
+                });
+
+                if (existingResult) {
+                  await GameResult.findByIdAndUpdate(existingResult._id, {
+                    awayScore: espnGame.awayScore,
+                    homeScore: espnGame.homeScore,
+                    status: "final",
+                    winner: winner,
+                    processed: false, // Reset processed flag so it gets reprocessed
+                    updatedAt: new Date(),
+                  });
+                } else {
+                  const gameResult = new GameResult({
+                    gameId: dbGame._id,
+                    awayTeam: espnGame.awayTeam,
+                    homeTeam: espnGame.homeTeam,
+                    awayScore: espnGame.awayScore,
+                    homeScore: espnGame.homeScore,
+                    status: "final",
+                    winner: winner,
+                    processed: false,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                  });
+                  await gameResult.save();
+                }
+                processedResults++;
+              }
             } else {
-              const gameResult = new GameResult({
-                gameId: dbGame._id,
-                awayTeam: espnGame.awayTeam,
-                homeTeam: espnGame.homeTeam,
-                awayScore: espnGame.awayScore,
-                homeScore: espnGame.homeScore,
-                status: "final",
-                winner: winner,
-                processed: false,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              });
-              await gameResult.save();
+              console.log(
+                `  No update needed: ${espnGame.awayTeam} @ ${espnGame.homeTeam}`
+              );
             }
-            processedResults++;
+          } else {
+            console.log(
+              `  Game not found in database: ${espnGame.awayTeam} @ ${espnGame.homeTeam}`
+            );
           }
-        } else {
-          console.log(
-            `  No update needed: ${espnGame.awayTeam} @ ${espnGame.homeTeam}`
-          );
         }
-      } else {
+
         console.log(
-          `  Game not found in database: ${espnGame.awayTeam} @ ${espnGame.homeTeam}`
+          `✅ Week ${week}: Updated ${updatedGames} games, created/updated ${processedResults} game results`
         );
+        totalUpdatedGames += updatedGames;
+        totalProcessedResults += processedResults;
+
+        // Calculate pick results for this week's finalized games
+        if (processedResults > 0) {
+          console.log(`🔄 Calculating pick results for Week ${week}...`);
+          await calculatePickResults(currentSeason, week);
+        }
+      } catch (error) {
+        console.error(`❌ Error processing Week ${week}:`, error.message);
+        // Continue with other weeks even if one fails
       }
     }
 
     console.log(
-      `\n📈 Updated ${updatedGames} games, created/updated ${processedResults} game results`
+      `\n📈 Total: Updated ${totalUpdatedGames} games, created/updated ${totalProcessedResults} game results`
     );
 
     // Process any unprocessed game results
-    if (processedResults > 0) {
+    if (totalProcessedResults > 0) {
       console.log("\n🔄 Processing game results...");
       await scoringService.processAllResults();
       console.log("✅ Game results processed successfully!");
     }
-
-    // Also calculate pick results for any finalized games
-    console.log("\n🔄 Calculating pick results for finalized games...");
-    await calculatePickResults(currentSeason, currentWeek);
-    console.log("✅ Pick results calculated successfully!");
 
     console.log("✅ Automatic score update completed!");
   } catch (error) {
