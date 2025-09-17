@@ -105,6 +105,20 @@ const startServer = async () => {
           "⏸️ Score updates disabled in development (set ENABLE_SCORE_UPDATES=true to enable)"
         );
       }
+
+      // Start automated record update job
+      if (
+        process.env.NODE_ENV === "production" ||
+        process.env.ENABLE_RECORD_UPDATES === "true"
+      ) {
+        const recordUpdateJob = require("./jobs/recordUpdateJob");
+        recordUpdateJob.start();
+        console.log("📊 Automated record update job started");
+      } else {
+        console.log(
+          "⏸️ Record updates disabled in development (set ENABLE_RECORD_UPDATES=true to enable)"
+        );
+      }
     });
   } catch (error) {
     console.error("❌ Failed to start server:", error);

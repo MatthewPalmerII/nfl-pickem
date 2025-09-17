@@ -25,39 +25,93 @@ const updateTeamRecordsAndSpreads = async () => {
     const standings = await espnService.getTeamStandings(currentSeason);
     console.log(`Found records for ${Object.keys(standings).length} teams`);
 
+    // Create mapping from ESPN team names to database team names
+    const teamNameMapping = {
+      "Buffalo Bills": "Bills",
+      "Miami Dolphins": "Dolphins",
+      "New England Patriots": "Patriots",
+      "New York Jets": "Jets",
+      "Baltimore Ravens": "Ravens",
+      "Cincinnati Bengals": "Bengals",
+      "Cleveland Browns": "Browns",
+      "Pittsburgh Steelers": "Steelers",
+      "Houston Texans": "Texans",
+      "Indianapolis Colts": "Colts",
+      "Jacksonville Jaguars": "Jaguars",
+      "Tennessee Titans": "Titans",
+      "Denver Broncos": "Broncos",
+      "Kansas City Chiefs": "Chiefs",
+      "Las Vegas Raiders": "Raiders",
+      "Los Angeles Chargers": "Chargers",
+      "Dallas Cowboys": "Cowboys",
+      "New York Giants": "Giants",
+      "Philadelphia Eagles": "Eagles",
+      "Washington Commanders": "Commanders",
+      "Chicago Bears": "Bears",
+      "Detroit Lions": "Lions",
+      "Green Bay Packers": "Packers",
+      "Minnesota Vikings": "Vikings",
+      "Atlanta Falcons": "Falcons",
+      "Carolina Panthers": "Panthers",
+      "New Orleans Saints": "Saints",
+      "Tampa Bay Buccaneers": "Buccaneers",
+      "Arizona Cardinals": "Cardinals",
+      "Los Angeles Rams": "Rams",
+      "San Francisco 49ers": "49ers",
+      "Seattle Seahawks": "Seahawks",
+    };
+
+    // Convert ESPN standings to database team names
+    const mappedStandings = {};
+    Object.entries(standings).forEach(([espnName, record]) => {
+      const dbName = teamNameMapping[espnName];
+      if (dbName) {
+        mappedStandings[dbName] = record;
+      } else {
+        console.log(`⚠️ No mapping found for ESPN team: "${espnName}"`);
+      }
+    });
+
+    console.log(`Mapped ${Object.keys(mappedStandings).length} team records`);
+
     // Update team records in all games
-    console.log("🔄 Updating team records in games...");
-    const games = await Game.find({ season: currentSeason });
+    if (Object.keys(mappedStandings).length > 0) {
+      console.log("🔄 Updating team records in games...");
+      const games = await Game.find({ season: currentSeason });
+      console.log(`Found ${games.length} games in database`);
 
-    let updatedGames = 0;
-    for (const game of games) {
-      let needsUpdate = false;
-      const updates = {};
+      let updatedGames = 0;
+      for (const game of games) {
+        let needsUpdate = false;
+        const updates = {};
 
-      // Update away team record
-      if (standings[game.awayTeam]) {
-        updates.awayRecord = standings[game.awayTeam];
-        needsUpdate = true;
+        // Update away team record
+        if (mappedStandings[game.awayTeam]) {
+          updates.awayRecord = mappedStandings[game.awayTeam];
+          needsUpdate = true;
+        }
+
+        // Update home team record
+        if (mappedStandings[game.homeTeam]) {
+          updates.homeRecord = mappedStandings[game.homeTeam];
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          await Game.findByIdAndUpdate(game._id, updates);
+          updatedGames++;
+          console.log(
+            `   ✅ Updated ${game.awayTeam} (${
+              updates.awayRecord || game.awayRecord
+            }) @ ${game.homeTeam} (${updates.homeRecord || game.homeRecord})`
+          );
+        }
       }
 
-      // Update home team record
-      if (standings[game.homeTeam]) {
-        updates.homeRecord = standings[game.homeTeam];
-        needsUpdate = true;
-      }
-
-      if (needsUpdate) {
-        await Game.findByIdAndUpdate(game._id, updates);
-        updatedGames++;
-        console.log(
-          `   ✅ Updated ${game.awayTeam} (${
-            updates.awayRecord || game.awayRecord
-          }) @ ${game.homeTeam} (${updates.homeRecord || game.homeRecord})`
-        );
-      }
+      console.log(`📈 Updated records for ${updatedGames} games`);
+    } else {
+      console.log("⚠️ No team records found, skipping record updates");
     }
-
-    console.log(`📈 Updated records for ${updatedGames} games`);
 
     // Update spreads for current and upcoming weeks
     console.log("🎯 Fetching and updating spreads...");

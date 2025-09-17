@@ -191,42 +191,79 @@ class ESPNService {
    */
   async getTeamStandings(season) {
     try {
-      const url = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/${season}/types/2/standings`;
+      // Try the main scoreboard API first as it often includes team records
+      const url = `${this.baseURL}/scoreboard?year=${season}`;
       const response = await axios.get(url, { timeout: this.timeout });
 
-      if (!response.data || !response.data.children) {
-        throw new Error("Invalid response from ESPN standings API");
+      if (!response.data || !response.data.events) {
+        throw new Error("Invalid response from ESPN API");
       }
 
       const standings = {};
 
-      // Parse standings data
-      response.data.children.forEach((conference) => {
-        if (conference.children) {
-          conference.children.forEach((division) => {
-            if (division.children) {
-              division.children.forEach((team) => {
-                if (team.team && team.stats) {
-                  const teamName = team.team.displayName;
-                  const wins =
-                    team.stats.find((stat) => stat.label === "W")?.value || 0;
-                  const losses =
-                    team.stats.find((stat) => stat.label === "L")?.value || 0;
-                  standings[teamName] = `${wins}-${losses}`;
-                }
-              });
+      // Extract team records from scoreboard data
+      response.data.events.forEach((event) => {
+        const competition = event.competitions?.[0];
+        if (competition && competition.competitors) {
+          competition.competitors.forEach((competitor) => {
+            if (competitor.team && competitor.records) {
+              const teamName = competitor.team.displayName;
+              const record = competitor.records.find((r) => r.type === "total");
+              if (record && record.summary) {
+                standings[teamName] = record.summary;
+              }
             }
           });
         }
       });
 
+      // If we didn't get enough data, try the standings endpoint
+      if (Object.keys(standings).length < 10) {
+        console.log("Trying alternative standings endpoint...");
+        try {
+          const standingsUrl = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/${season}/types/2/standings`;
+          const standingsResponse = await axios.get(standingsUrl, {
+            timeout: this.timeout,
+          });
+
+          if (standingsResponse.data && standingsResponse.data.children) {
+            standingsResponse.data.children.forEach((conference) => {
+              if (conference.children) {
+                conference.children.forEach((division) => {
+                  if (division.children) {
+                    division.children.forEach((team) => {
+                      if (team.team && team.stats) {
+                        const teamName = team.team.displayName;
+                        const wins =
+                          team.stats.find((stat) => stat.label === "W")
+                            ?.value || 0;
+                        const losses =
+                          team.stats.find((stat) => stat.label === "L")
+                            ?.value || 0;
+                        standings[teamName] = `${wins}-${losses}`;
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
+        } catch (standingsError) {
+          console.log(
+            "Standings endpoint also failed, using scoreboard data only"
+          );
+        }
+      }
+
+      console.log(`Found records for ${Object.keys(standings).length} teams`);
       return standings;
     } catch (error) {
       console.error(
         `Error fetching team standings for ${season}:`,
         error.message
       );
-      throw error;
+      // Return empty object instead of throwing to allow script to continue
+      return {};
     }
   }
 

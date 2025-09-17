@@ -413,4 +413,24 @@ router.get("/", adminAuth, async (req, res) => {
   }
 });
 
+// @route   POST /api/games/update-records
+// @desc    Manually trigger team records and spreads update (Admin only)
+// @access  Private (Admin)
+router.post("/update-records", adminAuth, async (req, res) => {
+  try {
+    const recordUpdateJob = require("../jobs/recordUpdateJob");
+    await recordUpdateJob.runNow();
+
+    res.json({
+      message: "Team records and spreads update completed successfully",
+    });
+  } catch (error) {
+    console.error("Manual record update error:", error);
+    res.status(500).json({
+      message: "Error updating team records and spreads",
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;
