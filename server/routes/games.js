@@ -44,6 +44,9 @@ router.get("/week/:week", auth, async (req, res) => {
         lockTime: lockTime.toISOString(),
         isLocked,
         canMakePicks: !isLocked,
+        // Include spread and over/under if available
+        spread: game.spread || null,
+        overUnder: game.overUnder || null,
       };
     });
 

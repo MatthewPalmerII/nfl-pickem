@@ -115,6 +115,14 @@ const gameSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    spread: {
+      type: String,
+      default: null, // e.g., "-3.5" or "+7"
+    },
+    overUnder: {
+      type: String,
+      default: null, // e.g., "45.5"
+    },
   },
   {
     timestamps: true,

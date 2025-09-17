@@ -185,6 +185,103 @@ class ESPNService {
       throw error;
     }
   }
+
+  /**
+   * Get team standings/records for a specific season
+   */
+  async getTeamStandings(season) {
+    try {
+      const url = `https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/${season}/types/2/standings`;
+      const response = await axios.get(url, { timeout: this.timeout });
+
+      if (!response.data || !response.data.children) {
+        throw new Error("Invalid response from ESPN standings API");
+      }
+
+      const standings = {};
+
+      // Parse standings data
+      response.data.children.forEach((conference) => {
+        if (conference.children) {
+          conference.children.forEach((division) => {
+            if (division.children) {
+              division.children.forEach((team) => {
+                if (team.team && team.stats) {
+                  const teamName = team.team.displayName;
+                  const wins =
+                    team.stats.find((stat) => stat.label === "W")?.value || 0;
+                  const losses =
+                    team.stats.find((stat) => stat.label === "L")?.value || 0;
+                  standings[teamName] = `${wins}-${losses}`;
+                }
+              });
+            }
+          });
+        }
+      });
+
+      return standings;
+    } catch (error) {
+      console.error(
+        `Error fetching team standings for ${season}:`,
+        error.message
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get betting odds/spreads for games
+   */
+  async getGameOdds(season, week) {
+    try {
+      const url = `${this.baseURL}/scoreboard?week=${week}&year=${season}`;
+      const response = await axios.get(url, { timeout: this.timeout });
+
+      if (!response.data || !response.data.events) {
+        return {};
+      }
+
+      const odds = {};
+
+      response.data.events.forEach((event) => {
+        const competition = event.competitions?.[0];
+        if (competition && competition.odds) {
+          const awayTeam = competition.competitors?.find(
+            (c) => c.homeAway === "away"
+          );
+          const homeTeam = competition.competitors?.find(
+            (c) => c.homeAway === "home"
+          );
+
+          if (awayTeam && homeTeam) {
+            const gameKey = `${awayTeam.team.name}@${homeTeam.team.name}`;
+
+            // Look for spread in odds
+            const spread = competition.odds.find(
+              (odd) => odd.type === "spread"
+            );
+            if (spread && spread.details) {
+              odds[gameKey] = {
+                spread: spread.details,
+                overUnder:
+                  competition.odds.find((odd) => odd.type === "overUnder")
+                    ?.details || null,
+              };
+            }
+          }
+        }
+      });
+
+      return odds;
+    } catch (error) {
+      console.error(
+        `Error fetching game odds for week ${week}:`,
+        error.message
+      );
+      return {};
+    }
+  }
 }
 
 module.exports = new ESPNService();

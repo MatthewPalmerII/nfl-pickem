@@ -162,6 +162,7 @@ const fetchNFLSchedule = async () => {
                   date: gameDate,
                   time:
                     gameDate.toLocaleTimeString("en-US", {
+                      timeZone: "America/New_York",
                       hour: "2-digit",
                       minute: "2-digit",
                       hour12: true,
