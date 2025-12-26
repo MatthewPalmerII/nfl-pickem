@@ -100,11 +100,6 @@ const updateTeamRecordsAndSpreads = async () => {
         if (needsUpdate) {
           await Game.findByIdAndUpdate(game._id, updates);
           updatedGames++;
-          console.log(
-            `   ✅ Updated ${game.awayTeam} (${
-              updates.awayRecord || game.awayRecord
-            }) @ ${game.homeTeam} (${updates.homeRecord || game.homeRecord})`
-          );
         }
       }
 

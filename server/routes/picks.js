@@ -454,7 +454,7 @@ router.get("/admin", adminAuth, async (req, res) => {
 
     const picks = await Pick.find(query)
       .populate("userId", "name email isAdmin")
-      .populate("gameId", "awayTeam homeTeam week date")
+      .populate("gameId", "awayTeam homeTeam week date isMondayNight")
       .sort({ week: 1, submittedAt: -1 });
 
     res.json(picks);

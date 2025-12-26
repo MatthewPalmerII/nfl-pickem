@@ -6,15 +6,9 @@ nixPkgs = ["nodejs-18_x", "npm"]
 
 [phases.install]
 cmds = [
-  "cd nfl-pickem-frontend",
+  "cd server",
   "npm ci"
 ]
 
-[phases.build]
-cmds = [
-  "cd nfl-pickem-frontend", 
-  "npm run build"
-]
-
 [start]
-cmd = "cd nfl-pickem-frontend && npm start"
+cmd = "cd server && npm start"

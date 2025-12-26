@@ -270,6 +270,7 @@ class ESPNService {
   /**
    * Get betting odds/spreads for games
    */
+  // In server/services/espnService.js
   async getGameOdds(season, week) {
     try {
       const url = `${this.baseURL}/scoreboard?week=${week}&year=${season}`;
@@ -283,7 +284,7 @@ class ESPNService {
 
       response.data.events.forEach((event) => {
         const competition = event.competitions?.[0];
-        if (competition && competition.odds) {
+        if (competition) {
           const awayTeam = competition.competitors?.find(
             (c) => c.homeAway === "away"
           );
@@ -294,22 +295,33 @@ class ESPNService {
           if (awayTeam && homeTeam) {
             const gameKey = `${awayTeam.team.name}@${homeTeam.team.name}`;
 
-            // Look for spread in odds
-            const spread = competition.odds.find(
-              (odd) => odd.type === "spread"
-            );
-            if (spread && spread.details) {
+            // Look for odds in different possible locations
+            let spread = null;
+            let overUnder = null;
+
+            // Check if odds exist
+            if (competition.odds && competition.odds.length > 0) {
+              competition.odds.forEach((odd) => {
+                if (odd.type === "spread" && odd.details) {
+                  spread = odd.details;
+                } else if (odd.type === "overUnder" && odd.details) {
+                  overUnder = odd.details;
+                }
+              });
+            }
+
+            // If we found any odds, store them
+            if (spread || overUnder) {
               odds[gameKey] = {
-                spread: spread.details,
-                overUnder:
-                  competition.odds.find((odd) => odd.type === "overUnder")
-                    ?.details || null,
+                spread: spread,
+                overUnder: overUnder,
               };
             }
           }
         }
       });
 
+      console.log(`Found odds for ${Object.keys(odds).length} games`);
       return odds;
     } catch (error) {
       console.error(
