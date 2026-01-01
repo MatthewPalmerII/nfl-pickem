@@ -139,12 +139,18 @@ async function autoScoreUpdate() {
     }
     console.log(`📊 Will process weeks: ${weeksToProcess.join(", ")}`);
 
-    // Check what games we have in the database
-    const dbGames = await Game.find({ season: currentSeason }).sort({
+    // Check what games we have in the database (check current season and next year for weeks 17-18)
+    const dbGames = await Game.find({
+      $or: [
+        { season: currentSeason },
+        { season: currentSeason + 1, week: { $gte: 17 } },
+        { season: currentSeason - 1 },
+      ],
+    }).sort({
       week: 1,
     });
     console.log(
-      `📊 Found ${dbGames.length} games in database for season ${currentSeason}`
+      `📊 Found ${dbGames.length} games in database for season ${currentSeason} (including adjacent seasons)`
     );
     dbGames.forEach((game) => {
       console.log(
@@ -152,13 +158,13 @@ async function autoScoreUpdate() {
       );
     });
 
-    // Try to find the Cowboys @ Eagles game specifically
+    // Try to find the Cowboys @ Eagles game specifically (check multiple seasons)
     const cowboysEaglesGame = await Game.findOne({
       $or: [
         { awayTeam: "Cowboys", homeTeam: "Eagles" },
         { awayTeam: "Eagles", homeTeam: "Cowboys" },
       ],
-      season: currentSeason,
+      season: { $in: [currentSeason, currentSeason + 1, currentSeason - 1] },
     });
 
     if (cowboysEaglesGame) {
@@ -230,13 +236,16 @@ async function autoScoreUpdate() {
           );
 
           // Find the game in our database
+          // Check current season, next year (for weeks 17-18), and previous year (for edge cases)
           const dbGame = await Game.findOne({
             $or: [
               { awayTeam: espnGame.awayTeam, homeTeam: espnGame.homeTeam },
               { awayTeam: espnGame.homeTeam, homeTeam: espnGame.awayTeam },
             ],
             week: week,
-            season: currentSeason,
+            season: {
+              $in: [currentSeason, currentSeason + 1, currentSeason - 1],
+            },
           });
 
           if (dbGame) {
