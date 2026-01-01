@@ -45,7 +45,6 @@ router.post(
       }
 
       const { picks } = req.body;
-      const season = new Date().getFullYear();
 
       // Validate that all picks are for the same week
       const week = picks[0].week;
@@ -55,8 +54,28 @@ router.post(
           .json({ message: "All picks must be for the same week" });
       }
 
-      // Get all games for this week to validate
-      const games = await Game.find({ week, season });
+      // Determine season from the games being picked (NFL season spans two calendar years)
+      // First, try to find games for this week - check current year and next year
+      const currentYear = new Date().getFullYear();
+      let games = await Game.find({ week, season: currentYear });
+      let season = currentYear;
+
+      // If no games found in current year, check next year (for weeks 17-18 which are in January)
+      if (games.length === 0) {
+        games = await Game.find({ week, season: currentYear + 1 });
+        if (games.length > 0) {
+          season = currentYear + 1;
+        }
+      }
+
+      // If still no games, try previous year (for edge cases)
+      if (games.length === 0) {
+        games = await Game.find({ week, season: currentYear - 1 });
+        if (games.length > 0) {
+          season = currentYear - 1;
+        }
+      }
+
       if (games.length === 0) {
         return res
           .status(400)
@@ -191,8 +210,32 @@ router.put(
       }
 
       const { picks } = req.body;
-      const season = new Date().getFullYear();
       const week = picks[0].week;
+
+      // Determine season from the games being updated (NFL season spans two calendar years)
+      const currentYear = new Date().getFullYear();
+      let games = await Game.find({
+        _id: { $in: picks.map((p) => p.gameId) },
+        week,
+      });
+
+      // Determine season from the games found
+      let season = currentYear;
+      if (games.length > 0) {
+        season = games[0].season;
+      } else {
+        // Fallback: try to find any games for this week
+        const weekGames = await Game.find({ week, season: currentYear });
+        if (weekGames.length === 0) {
+          const nextYearGames = await Game.find({
+            week,
+            season: currentYear + 1,
+          });
+          if (nextYearGames.length > 0) {
+            season = currentYear + 1;
+          }
+        }
+      }
 
       // Validate that all picks are for the same week
       if (!picks.every((pick) => pick.week === week)) {

@@ -15,10 +15,16 @@ router.get("/user", auth, async (req, res) => {
     const userId = req.user._id;
 
     // Get user's picks for the season
-    const picks = await Pick.find({ userId, season }).populate(
-      "gameId",
-      "awayTeam homeTeam week winner"
-    );
+    // NFL seasons span two calendar years (e.g., 2025 season = Sept 2025 - Jan 2026)
+    // So we need to check both the season year and next year for weeks 17-18
+    const picks = await Pick.find({
+      userId,
+      $or: [
+        { season },
+        // Include picks from next year for weeks 17-18 (late season games in January)
+        { season: season + 1, week: { $gte: 17 } },
+      ],
+    }).populate("gameId", "awayTeam homeTeam week winner");
 
     if (picks.length === 0) {
       return res.json({
@@ -54,8 +60,9 @@ router.get("/user", auth, async (req, res) => {
 
     // Sort picks by week and submission time to calculate streaks
     const sortedPicks = picks
-      .filter((pick) => pick.isCorrect !== null) // Only count resolved picks
+      .filter((pick) => pick.isCorrect !== null && pick.gameId) // Only count resolved picks with valid gameId
       .sort((a, b) => {
+        if (!a.gameId || !b.gameId) return 0;
         if (a.gameId.week !== b.gameId.week) {
           return a.gameId.week - b.gameId.week;
         }
@@ -81,6 +88,7 @@ router.get("/user", auth, async (req, res) => {
     const weekStats = {};
 
     picks.forEach((pick) => {
+      if (!pick.gameId) return; // Skip picks with null gameId
       const week = pick.gameId.week;
       if (!weekStats[week]) {
         weekStats[week] = { correct: 0, total: 0 };
@@ -107,7 +115,15 @@ router.get("/user", auth, async (req, res) => {
     // Calculate rank
     const allUsers = await User.countDocuments({ active: true });
     const userRank = await Pick.aggregate([
-      { $match: { season } },
+      {
+        $match: {
+          $or: [
+            { season },
+            // Include picks from next year for weeks 17-18 (late season games in January)
+            { season: season + 1, week: { $gte: 17 } },
+          ],
+        },
+      },
       {
         $group: {
           _id: "$userId",
@@ -230,12 +246,17 @@ router.get("/season", async (req, res) => {
     const season = parseInt(req.query.season) || new Date().getFullYear();
 
     // Get all picks for the season
-    const picks = await Pick.find({ season })
+    // Include picks from next year for weeks 17-18 (late season games in January)
+    const picks = await Pick.find({
+      $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+    })
       .populate("userId", "name email")
       .populate("gameId", "week awayTeam homeTeam winner");
 
-    // Get all games for the season
-    const games = await Game.find({ season });
+    // Get all games for the season (include next year for weeks 17-18)
+    const games = await Game.find({
+      $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+    });
 
     // Calculate season statistics
     const totalGames = games.length;
@@ -247,7 +268,7 @@ router.get("/season", async (req, res) => {
     const weeklyStats = {};
     for (let week = 1; week <= 18; week++) {
       const weekGames = games.filter((g) => g.week === week);
-      const weekPicks = picks.filter((p) => p.gameId.week === week);
+      const weekPicks = picks.filter((p) => p.gameId && p.gameId.week === week);
       const weekPlayers = new Set(weekPicks.map((p) => p.userId._id.toString()))
         .size;
 
@@ -281,8 +302,13 @@ router.get("/season", async (req, res) => {
         : 0;
 
     // Get top performers
+    // Include picks from next year for weeks 17-18 (late season games in January)
     const topPerformers = await Pick.aggregate([
-      { $match: { season } },
+      {
+        $match: {
+          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+        },
+      },
       {
         $group: {
           _id: "$userId",
@@ -334,15 +360,16 @@ router.get("/compare/:userId1/:userId2", async (req, res) => {
     const season = parseInt(req.query.season) || new Date().getFullYear();
 
     // Get picks for both users
+    // Include picks from next year for weeks 17-18 (late season games in January)
     const [picks1, picks2] = await Promise.all([
-      Pick.find({ userId: userId1, season }).populate(
-        "gameId",
-        "week awayTeam homeTeam winner"
-      ),
-      Pick.find({ userId: userId2, season }).populate(
-        "gameId",
-        "week awayTeam homeTeam winner"
-      ),
+      Pick.find({
+        userId: userId1,
+        $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+      }).populate("gameId", "week awayTeam homeTeam winner"),
+      Pick.find({
+        userId: userId2,
+        $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+      }).populate("gameId", "week awayTeam homeTeam winner"),
     ]);
 
     // Get user info
@@ -365,6 +392,7 @@ router.get("/compare/:userId1/:userId2", async (req, res) => {
       // Calculate weekly breakdown
       const weeklyStats = {};
       picks.forEach((pick) => {
+        if (!pick.gameId) return; // Skip picks with null gameId
         const week = pick.gameId.week;
         if (!weeklyStats[week]) {
           weeklyStats[week] = { correct: 0, total: 0 };
@@ -392,11 +420,15 @@ router.get("/compare/:userId1/:userId2", async (req, res) => {
     const gameMap2 = {};
 
     picks1.forEach((pick) => {
-      gameMap1[pick.gameId._id.toString()] = pick;
+      if (pick.gameId) {
+        gameMap1[pick.gameId._id.toString()] = pick;
+      }
     });
 
     picks2.forEach((pick) => {
-      gameMap2[pick.gameId._id.toString()] = pick;
+      if (pick.gameId) {
+        gameMap2[pick.gameId._id.toString()] = pick;
+      }
     });
 
     Object.keys(gameMap1).forEach((gameId) => {
@@ -404,15 +436,17 @@ router.get("/compare/:userId1/:userId2", async (req, res) => {
         const pick1 = gameMap1[gameId];
         const pick2 = gameMap2[gameId];
 
-        headToHead.push({
-          week: pick1.gameId.week,
-          game: `${pick1.gameId.awayTeam} @ ${pick1.gameId.homeTeam}`,
-          user1Pick: pick1.selectedTeam,
-          user2Pick: pick2.selectedTeam,
-          winner: pick1.gameId.winner,
-          user1Correct: pick1.isCorrect,
-          user2Correct: pick2.isCorrect,
-        });
+        if (pick1.gameId && pick2.gameId) {
+          headToHead.push({
+            week: pick1.gameId.week,
+            game: `${pick1.gameId.awayTeam} @ ${pick1.gameId.homeTeam}`,
+            user1Pick: pick1.selectedTeam,
+            user2Pick: pick2.selectedTeam,
+            winner: pick1.gameId.winner,
+            user1Correct: pick1.isCorrect,
+            user2Correct: pick2.isCorrect,
+          });
+        }
       }
     });
 

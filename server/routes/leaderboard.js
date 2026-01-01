@@ -14,8 +14,18 @@ router.get("/overall", async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
 
     // Aggregate picks to get user statistics
+    // NFL seasons span two calendar years (e.g., 2025 season = Sept 2025 - Jan 2026)
+    // So we need to check both the season year and next year for weeks 17-18
     const leaderboard = await Pick.aggregate([
-      { $match: { season } },
+      {
+        $match: {
+          $or: [
+            { season },
+            // Include picks from next year for weeks 17-18 (late season games in January)
+            { season: season + 1, week: { $gte: 17 } },
+          ],
+        },
+      },
       {
         $group: {
           _id: "$userId",
@@ -64,7 +74,11 @@ router.get("/overall", async (req, res) => {
         if (!user) return null;
 
         // Calculate streaks
-        const userPicks = await Pick.find({ userId: entry._id, season })
+        // Include picks from next year for weeks 17-18 (late season games in January)
+        const userPicks = await Pick.find({
+          userId: entry._id,
+          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+        })
           .populate("gameId", "week")
           .sort({ "gameId.week": 1, submittedAt: 1 });
 
@@ -74,8 +88,9 @@ router.get("/overall", async (req, res) => {
 
         // Sort picks by week and submission time
         const sortedPicks = userPicks
-          .filter((pick) => pick.isCorrect !== null)
+          .filter((pick) => pick.isCorrect !== null && pick.gameId)
           .sort((a, b) => {
+            if (!a.gameId || !b.gameId) return 0;
             if (a.gameId.week !== b.gameId.week) {
               return a.gameId.week - b.gameId.week;
             }
@@ -149,12 +164,22 @@ router.get("/week/:week", async (req, res) => {
     }
 
     // Get all picks for this week
-    const picks = await Pick.find({ week, season })
+    // For weeks 17-18, also check next year (late season games in January)
+    const seasonQuery =
+      week >= 17
+        ? {
+            $or: [
+              { week, season },
+              { week, season: season + 1 },
+            ],
+          }
+        : { week, season };
+    const picks = await Pick.find(seasonQuery)
       .populate("userId", "name email")
       .populate("gameId", "awayTeam homeTeam winner status");
 
     // Get games for this week
-    const games = await Game.find({ week, season });
+    const games = await Game.find(seasonQuery);
 
     if (games.length === 0) {
       return res.json({
@@ -241,10 +266,11 @@ router.get("/user/:userId", async (req, res) => {
     }
 
     // Get user's picks for the season
-    const picks = await Pick.find({ userId, season }).populate(
-      "gameId",
-      "week awayTeam homeTeam winner status date"
-    );
+    // Include picks from next year for weeks 17-18 (late season games in January)
+    const picks = await Pick.find({
+      userId,
+      $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+    }).populate("gameId", "week awayTeam homeTeam winner status date");
 
     // Calculate overall stats
     const totalPicks = picks.length;
@@ -263,7 +289,7 @@ router.get("/user/:userId", async (req, res) => {
     // Calculate weekly breakdown
     const weeklyStats = {};
     for (let week = 1; week <= 18; week++) {
-      const weekPicks = picks.filter((p) => p.gameId.week === week);
+      const weekPicks = picks.filter((p) => p.gameId && p.gameId.week === week);
       if (weekPicks.length > 0) {
         const weekCorrect = weekPicks.filter(
           (p) => p.isCorrect === true
@@ -283,8 +309,9 @@ router.get("/user/:userId", async (req, res) => {
     let tempStreak = 0;
 
     const sortedPicks = picks
-      .filter((pick) => pick.isCorrect !== null)
+      .filter((pick) => pick.isCorrect !== null && pick.gameId)
       .sort((a, b) => {
+        if (!a.gameId || !b.gameId) return 0;
         if (a.gameId.week !== b.gameId.week) {
           return a.gameId.week - b.gameId.week;
         }
@@ -305,8 +332,13 @@ router.get("/user/:userId", async (req, res) => {
     currentStreak = tempStreak;
 
     // Get user's rank
+    // Include picks from next year for weeks 17-18 (late season games in January)
     const userRank = await Pick.aggregate([
-      { $match: { season } },
+      {
+        $match: {
+          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+        },
+      },
       {
         $group: {
           _id: "$userId",
@@ -363,8 +395,13 @@ router.get("/top-performers", async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
 
     // Get top performers by points
+    // Include picks from next year for weeks 17-18 (late season games in January)
     const topPerformers = await Pick.aggregate([
-      { $match: { season } },
+      {
+        $match: {
+          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+        },
+      },
       {
         $group: {
           _id: "$userId",
@@ -433,12 +470,18 @@ router.get("/streaks", async (req, res) => {
     const season = parseInt(req.query.season) || new Date().getFullYear();
     const limit = parseInt(req.query.limit) || 10;
 
-    // Get all users with picks
-    const usersWithPicks = await Pick.distinct("userId", { season });
+    // Get all users with picks (include next year for weeks 17-18)
+    const usersWithPicks = await Pick.distinct("userId", {
+      $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+    });
 
     const streakData = await Promise.all(
       usersWithPicks.map(async (userId) => {
-        const picks = await Pick.find({ userId, season })
+        // Include picks from next year for weeks 17-18 (late season games in January)
+        const picks = await Pick.find({
+          userId,
+          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+        })
           .populate("gameId", "week")
           .sort({ "gameId.week": 1, submittedAt: 1 });
 
@@ -446,8 +489,9 @@ router.get("/streaks", async (req, res) => {
         let tempStreak = 0;
 
         const sortedPicks = picks
-          .filter((pick) => pick.isCorrect !== null)
+          .filter((pick) => pick.isCorrect !== null && pick.gameId)
           .sort((a, b) => {
+            if (!a.gameId || !b.gameId) return 0;
             if (a.gameId.week !== b.gameId.week) {
               return a.gameId.week - b.gameId.week;
             }
@@ -525,7 +569,11 @@ router.get("/weekly-wins", async (req, res) => {
     // Get total picks and correct picks for each user
     const usersWithStats = await Promise.all(
       users.map(async (user) => {
-        const picks = await Pick.find({ userId: user._id, season });
+        // Include picks from next year for weeks 17-18 (late season games in January)
+        const picks = await Pick.find({
+          userId: user._id,
+          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+        });
         const totalPicks = picks.length;
         const correctPicks = picks.filter(
           (pick) => pick.isCorrect === true
