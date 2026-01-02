@@ -380,9 +380,10 @@ router.get("/recent", auth, async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const season = parseInt(req.query.season) || new Date().getFullYear();
 
+    // Check current season, next year, and previous year to handle season mismatches
     const picks = await Pick.find({
       userId: req.user._id,
-      season,
+      season: { $in: [season, season + 1, season - 1] },
     })
       .populate("gameId", "awayTeam homeTeam week winner status")
       .sort({ submittedAt: -1 })
@@ -407,7 +408,8 @@ router.get("/user/:userId", async (req, res) => {
     const week = req.query.week ? parseInt(req.query.week) : null;
     const season = parseInt(req.query.season) || new Date().getFullYear();
 
-    const query = { userId, season };
+    // Check current season, next year, and previous year to handle season mismatches
+    const query = { userId, season: { $in: [season, season + 1, season - 1] } };
     if (week) query.week = week;
 
     const picks = await Pick.find(query)

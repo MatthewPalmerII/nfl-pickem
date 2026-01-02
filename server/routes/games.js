@@ -19,13 +19,17 @@ router.get("/week/:week", auth, async (req, res) => {
     }
 
     // Get games for the week
-    const games = await Game.find({ week, season }).sort("date");
+    // Check current season, next year, and previous year to handle season mismatches
+    const games = await Game.find({
+      week,
+      season: { $in: [season, season + 1, season - 1] },
+    }).sort("date");
 
-    // Get user's existing picks for this week
+    // Get user's existing picks for this week (check multiple seasons)
     const existingPicks = await Pick.find({
       userId: req.user._id,
       week,
-      season,
+      season: { $in: [season, season + 1, season - 1] },
     });
 
     // Create a map of existing picks

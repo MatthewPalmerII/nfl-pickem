@@ -15,15 +15,11 @@ router.get("/overall", async (req, res) => {
 
     // Aggregate picks to get user statistics
     // NFL seasons span two calendar years (e.g., 2025 season = Sept 2025 - Jan 2026)
-    // So we need to check both the season year and next year for weeks 17-18
+    // Check current season, next year, and previous year to handle season mismatches
     const leaderboard = await Pick.aggregate([
       {
         $match: {
-          $or: [
-            { season },
-            // Include picks from next year for weeks 17-18 (late season games in January)
-            { season: season + 1, week: { $gte: 17 } },
-          ],
+          season: { $in: [season, season + 1, season - 1] },
         },
       },
       {
@@ -74,10 +70,10 @@ router.get("/overall", async (req, res) => {
         if (!user) return null;
 
         // Calculate streaks
-        // Include picks from next year for weeks 17-18 (late season games in January)
+        // Check current season, next year, and previous year to handle season mismatches
         const userPicks = await Pick.find({
           userId: entry._id,
-          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+          season: { $in: [season, season + 1, season - 1] },
         })
           .populate("gameId", "week")
           .sort({ "gameId.week": 1, submittedAt: 1 });
@@ -266,10 +262,10 @@ router.get("/user/:userId", async (req, res) => {
     }
 
     // Get user's picks for the season
-    // Include picks from next year for weeks 17-18 (late season games in January)
+    // Check current season, next year, and previous year to handle season mismatches
     const picks = await Pick.find({
       userId,
-      $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+      season: { $in: [season, season + 1, season - 1] },
     }).populate("gameId", "week awayTeam homeTeam winner status date");
 
     // Calculate overall stats
@@ -332,11 +328,11 @@ router.get("/user/:userId", async (req, res) => {
     currentStreak = tempStreak;
 
     // Get user's rank
-    // Include picks from next year for weeks 17-18 (late season games in January)
+    // Check current season, next year, and previous year to handle season mismatches
     const userRank = await Pick.aggregate([
       {
         $match: {
-          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+          season: { $in: [season, season + 1, season - 1] },
         },
       },
       {
@@ -395,11 +391,11 @@ router.get("/top-performers", async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
 
     // Get top performers by points
-    // Include picks from next year for weeks 17-18 (late season games in January)
+    // Check current season, next year, and previous year to handle season mismatches
     const topPerformers = await Pick.aggregate([
       {
         $match: {
-          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+          season: { $in: [season, season + 1, season - 1] },
         },
       },
       {
@@ -470,17 +466,17 @@ router.get("/streaks", async (req, res) => {
     const season = parseInt(req.query.season) || new Date().getFullYear();
     const limit = parseInt(req.query.limit) || 10;
 
-    // Get all users with picks (include next year for weeks 17-18)
+    // Get all users with picks (check multiple seasons)
     const usersWithPicks = await Pick.distinct("userId", {
-      $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+      season: { $in: [season, season + 1, season - 1] },
     });
 
     const streakData = await Promise.all(
       usersWithPicks.map(async (userId) => {
-        // Include picks from next year for weeks 17-18 (late season games in January)
+        // Check current season, next year, and previous year to handle season mismatches
         const picks = await Pick.find({
           userId,
-          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+          season: { $in: [season, season + 1, season - 1] },
         })
           .populate("gameId", "week")
           .sort({ "gameId.week": 1, submittedAt: 1 });

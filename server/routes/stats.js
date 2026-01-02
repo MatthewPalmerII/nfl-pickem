@@ -16,14 +16,10 @@ router.get("/user", auth, async (req, res) => {
 
     // Get user's picks for the season
     // NFL seasons span two calendar years (e.g., 2025 season = Sept 2025 - Jan 2026)
-    // So we need to check both the season year and next year for weeks 17-18
+    // Check current season, next year, and previous year to handle season mismatches
     const picks = await Pick.find({
       userId,
-      $or: [
-        { season },
-        // Include picks from next year for weeks 17-18 (late season games in January)
-        { season: season + 1, week: { $gte: 17 } },
-      ],
+      season: { $in: [season, season + 1, season - 1] },
     }).populate("gameId", "awayTeam homeTeam week winner");
 
     if (picks.length === 0) {
@@ -117,11 +113,7 @@ router.get("/user", auth, async (req, res) => {
     const userRank = await Pick.aggregate([
       {
         $match: {
-          $or: [
-            { season },
-            // Include picks from next year for weeks 17-18 (late season games in January)
-            { season: season + 1, week: { $gte: 17 } },
-          ],
+          season: { $in: [season, season + 1, season - 1] },
         },
       },
       {
@@ -246,16 +238,16 @@ router.get("/season", async (req, res) => {
     const season = parseInt(req.query.season) || new Date().getFullYear();
 
     // Get all picks for the season
-    // Include picks from next year for weeks 17-18 (late season games in January)
+    // Check current season, next year, and previous year to handle season mismatches
     const picks = await Pick.find({
-      $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+      season: { $in: [season, season + 1, season - 1] },
     })
       .populate("userId", "name email")
       .populate("gameId", "week awayTeam homeTeam winner");
 
-    // Get all games for the season (include next year for weeks 17-18)
+    // Get all games for the season (check multiple seasons)
     const games = await Game.find({
-      $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+      season: { $in: [season, season + 1, season - 1] },
     });
 
     // Calculate season statistics
@@ -302,11 +294,11 @@ router.get("/season", async (req, res) => {
         : 0;
 
     // Get top performers
-    // Include picks from next year for weeks 17-18 (late season games in January)
+    // Check current season, next year, and previous year to handle season mismatches
     const topPerformers = await Pick.aggregate([
       {
         $match: {
-          $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+          season: { $in: [season, season + 1, season - 1] },
         },
       },
       {
@@ -360,15 +352,15 @@ router.get("/compare/:userId1/:userId2", async (req, res) => {
     const season = parseInt(req.query.season) || new Date().getFullYear();
 
     // Get picks for both users
-    // Include picks from next year for weeks 17-18 (late season games in January)
+    // Check current season, next year, and previous year to handle season mismatches
     const [picks1, picks2] = await Promise.all([
       Pick.find({
         userId: userId1,
-        $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+        season: { $in: [season, season + 1, season - 1] },
       }).populate("gameId", "week awayTeam homeTeam winner"),
       Pick.find({
         userId: userId2,
-        $or: [{ season }, { season: season + 1, week: { $gte: 17 } }],
+        season: { $in: [season, season + 1, season - 1] },
       }).populate("gameId", "week awayTeam homeTeam winner"),
     ]);
 

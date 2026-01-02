@@ -21,21 +21,65 @@ const fetchNFLSchedule = async () => {
   try {
     console.log("🌱 Fetching real NFL schedule from ESPN API...");
 
-    // Clear existing games
-    await Game.deleteMany({});
-    console.log("🗑️ Cleared existing games");
+    // Determine the current season year
+    const currentYear = new Date().getFullYear();
+    const season = currentYear;
 
-    const season = 2025;
+    console.log(`📅 Using season ${season} (current year: ${currentYear})`);
+
+    // Clear games for the current season only
+    // Preserve games from next year (season + 1) for weeks 17-18 since those are correct
+    await Game.deleteMany({
+      season: season,
+    });
+    console.log(
+      `🗑️ Cleared existing games for season ${season} (preserving season ${
+        season + 1
+      } games for weeks 17-18)`
+    );
     const createdGames = [];
 
     // Fetch schedule for weeks 1-18 (full NFL season)
+    // For weeks 17-18, we need to check both current year and next year
     for (let week = 1; week <= 18; week++) {
       console.log(`📅 Fetching Week ${week}...`);
 
+      // For weeks 17-18, check if they're in the next calendar year
+      let seasonToFetch = season;
+
       try {
-        const response = await axios.get(
-          `http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&year=${season}`
-        );
+        // Try current season first
+        let response = null;
+        try {
+          response = await axios.get(
+            `http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&year=${season}`
+          );
+        } catch (err) {
+          // If that fails and it's week 17-18, try next year
+          if (week >= 17) {
+            console.log(
+              `   Trying next year (${season + 1}) for Week ${week}...`
+            );
+            try {
+              response = await axios.get(
+                `http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&year=${
+                  season + 1
+                }`
+              );
+              // Update season for these games
+              seasonToFetch = season + 1;
+            } catch (nextYearErr) {
+              console.log(
+                `   ❌ Failed to fetch Week ${week} from both ${season} and ${
+                  season + 1
+                }`
+              );
+              continue;
+            }
+          } else {
+            throw err;
+          }
+        }
 
         if (response.data && response.data.events) {
           const games = response.data.events;
@@ -154,9 +198,17 @@ const fetchNFLSchedule = async () => {
                   gameNotes = "Monday Night Football - Tiebreaker Game";
                 }
 
+                // Determine the correct season for this game
+                // For weeks 17-18, use the actual year of the game date (which might be next calendar year)
+                // For weeks 1-16, use the current season
+                const gameSeason =
+                  week >= 17 && gameDate.getFullYear() > season
+                    ? gameDate.getFullYear()
+                    : seasonToFetch;
+
                 const newGame = {
                   week,
-                  season,
+                  season: gameSeason,
                   awayTeam: awayTeam.team.name,
                   homeTeam: homeTeam.team.name,
                   date: gameDate,
